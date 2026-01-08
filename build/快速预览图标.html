@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图标预览</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            text-align: center;
+        }
+
+        h1 {
+            margin-top: 0;
+            margin-bottom: 30px;
+            font-size: 32px;
+        }
+
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 30px;
+            margin: 30px 0;
+        }
+
+        .preview-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .icon-preview {
+            width: 128px;
+            height: 128px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 20px;
+            padding: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .size-label {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 500;
+        }
+
+        .instructions {
+            margin-top: 40px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            font-size: 14px;
+            line-height: 1.6;
+            text-align: left;
+            max-width: 600px;
+        }
+
+        .instructions h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+
+        .instructions ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin: 8px 0;
+        }
+
+        .note {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            font-size: 13px;
+        }
+
+        .download-btn {
+            margin-top: 20px;
+            padding: 12px 30px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid white;
+            border-radius: 25px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .download-btn:hover {
+            background: white;
+            color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 应用图标预览</h1>
+
+        <div class="preview-grid">
+            <div class="preview-item">
+                <img src="icon.svg" class="icon-preview" alt="16x16">
+                <div class="size-label">16×16</div>
+            </div>
+            <div class="preview-item">
+                <img src="icon.svg" class="icon-preview" alt="32x32">
+                <div class="size-label">32×32</div>
+            </div>
+            <div class="preview-item">
+                <img src="icon.svg" class="icon-preview" alt="128x128">
+                <div class="size-label">128×128</div>
+            </div>
+            <div class="preview-item">
+                <img src="icon.svg" class="icon-preview" alt="256x256">
+                <div class="size-label">256×256</div>
+            </div>
+        </div>
+
+        <button class="download-btn" onclick="downloadSVG()">📥 下载 SVG 图标</button>
+
+        <div class="instructions">
+            <h3>📝 下一步操作：</h3>
+            <ol>
+                <li><strong>右键点击图标</strong> → "将图像另存为" → 保存为 PNG（1024×1024）</li>
+                <li><strong>使用在线工具转换：</strong>
+                    <ul>
+                        <li>PNG → ICNS: <a href="https://cloudconvert.com/png-to-icns" target="_blank" style="color: #FFE66D;">cloudconvert.com</a></li>
+                        <li>PNG → ICO: <a href="https://cloudconvert.com/png-to-ico" target="_blank" style="color: #FFE66D;">cloudconvert.com</a></li>
+                    </ul>
+                </li>
+                <li><strong>将转换好的文件</strong>放入 <code>build/</code> 目录</li>
+                <li><strong>运行打包命令：</strong><code>npm run electron:build:mac</code></li>
+            </ol>
+
+            <div class="note">
+                💡 <strong>提示：</strong>如果暂时不设置图标，可以直接打包，系统会使用默认图标。
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function downloadSVG() {
+            const link = document.createElement('a');
+            link.href = 'icon.svg';
+            link.download = 'icon.svg';
+            link.click();
+        }
+    </script>
+</body>
+</html>

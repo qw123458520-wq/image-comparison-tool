@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景渐变 -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4A90E2;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#357ABD;stop-opacity:1" />
+    </linearGradient>
+
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#5CB85C;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4CAF50;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- 阴影 -->
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8"/>
+      <feOffset dx="0" dy="4" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.3"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 圆角矩形背景 -->
+  <rect width="512" height="512" rx="115" fill="url(#bgGradient)"/>
+
+  <!-- 左侧图片框（原图） -->
+  <g filter="url(#shadow)">
+    <rect x="80" y="140" width="180" height="220" rx="12" fill="white" opacity="0.95"/>
+    <rect x="95" y="155" width="150" height="120" rx="6" fill="#E8F4F8"/>
+    <!-- 山峰图案 -->
+    <path d="M 95 245 L 135 205 L 175 235 L 215 215 L 245 245 Z" fill="#B8D4E8"/>
+    <!-- 太阳 -->
+    <circle cx="215" cy="175" r="15" fill="#FFD700"/>
+  </g>
+
+  <!-- 右侧图片框（派生图） -->
+  <g filter="url(#shadow)">
+    <rect x="252" y="140" width="180" height="220" rx="12" fill="white" opacity="0.95"/>
+    <rect x="267" y="155" width="150" height="120" rx="6" fill="#E8F4F8"/>
+    <!-- 山峰图案（略有不同） -->
+    <path d="M 267 245 L 307 210 L 347 240 L 387 220 L 417 245 Z" fill="#B8D4E8"/>
+    <!-- 太阳 -->
+    <circle cx="387" cy="175" r="15" fill="#FFD700"/>
+  </g>
+
+  <!-- 对比箭头 -->
+  <g filter="url(#shadow)">
+    <path d="M 210 250 L 240 250 L 240 240 L 260 255 L 240 270 L 240 260 L 210 260 Z"
+          fill="white" opacity="0.9"/>
+    <path d="M 302 250 L 272 250 L 272 240 L 252 255 L 272 270 L 272 260 L 302 260 Z"
+          fill="white" opacity="0.9"/>
+  </g>
+
+  <!-- 底部标注工具栏 -->
+  <g filter="url(#shadow)">
+    <rect x="120" y="380" width="272" height="60" rx="30" fill="url(#accentGradient)"/>
+
+    <!-- 对勾图标 -->
+    <path d="M 190 405 L 200 415 L 225 390"
+          stroke="white" stroke-width="8" stroke-linecap="round"
+          stroke-linejoin="round" fill="none"/>
+
+    <!-- X 图标 -->
+    <g opacity="0.8">
+      <line x1="255" y1="395" x2="275" y2="415" stroke="white" stroke-width="6" stroke-linecap="round"/>
+      <line x1="275" y1="395" x2="255" y2="415" stroke="white" stroke-width="6" stroke-linecap="round"/>
+    </g>
+
+    <!-- 编辑图标（铅笔） -->
+    <g opacity="0.8">
+      <path d="M 310 395 L 330 415 L 310 415 Z" fill="white"/>
+      <rect x="318" y="388" width="8" height="20" rx="1" fill="white" transform="rotate(45 322 398)"/>
+    </g>
+  </g>
+</svg>

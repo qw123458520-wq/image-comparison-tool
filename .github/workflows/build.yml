@@ -10,11 +10,7 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
-
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
 
     steps:
       - name: 检出代码
@@ -29,50 +25,16 @@ jobs:
       - name: 安装依赖
         run: npm ci
 
-      - name: 打包 (macOS)
-        if: matrix.os == 'macos-latest'
+      - name: 打包 macOS 应用
         run: npm run electron:build:mac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 打包 (Windows)
-        if: matrix.os == 'windows-latest'
-        run: npm run electron:build:win
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 打包 (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: npm run electron:build:linux
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 上传打包产物 (macOS)
-        if: matrix.os == 'macos-latest'
+      - name: 上传打包产物
         uses: actions/upload-artifact@v4
         with:
           name: ImageComparisonTool-macOS
           path: |
             release/*.zip
             release/*.dmg
-          retention-days: 30
-
-      - name: 上传打包产物 (Windows)
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ImageComparisonTool-Windows
-          path: |
-            release/*.exe
-            release/*.zip
-          retention-days: 30
-
-      - name: 上传打包产物 (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ImageComparisonTool-Linux
-          path: |
-            release/*.AppImage
-            release/*.deb
           retention-days: 30

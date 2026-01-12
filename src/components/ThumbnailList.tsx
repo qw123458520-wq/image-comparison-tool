@@ -1,11 +1,9 @@
 /**
- * 缩略图列表组件 - 使用虚拟滚动优化性能
+ * 缩略图列表组件 - 优化版本
  */
 
-import { memo } from 'react'
-import { Card, Badge } from 'antd'
-import { FixedSizeList as List } from 'react-window'
-import AutoSizer from 'react-virtualized-auto-sizer'
+import { memo, useMemo } from 'react'
+import { List, Card, Badge } from 'antd'
 import {
   CheckCircleFilled,
   CloseCircleOutlined,
@@ -65,9 +63,10 @@ const ThumbnailItem = memo(
     }
 
     return (
-      <div
+      <List.Item
         style={{
-          padding: '4px 8px',
+          padding: 0,
+          marginBottom: 8,
           cursor: 'pointer',
         }}
         onClick={onSelect}
@@ -83,9 +82,10 @@ const ThumbnailItem = memo(
             bodyStyle={{
               padding: 8,
               background: isSelected ? '#e6f7ff' : 'white',
-              border: isSelected
-                ? '2px solid #1890ff'
-                : '1px solid #d9d9d9',
+              border:
+                isSelected
+                  ? '2px solid #1890ff'
+                  : '1px solid #d9d9d9',
             }}
           >
             <div
@@ -100,7 +100,8 @@ const ThumbnailItem = memo(
                 <div
                   style={{
                     fontSize: '12px',
-                    fontWeight: isSelected ? 'bold' : 'normal',
+                    fontWeight:
+                      isSelected ? 'bold' : 'normal',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
@@ -121,7 +122,7 @@ const ThumbnailItem = memo(
             </div>
           </Card>
         </Badge>
-      </div>
+      </List.Item>
     )
   }
 )
@@ -133,38 +134,30 @@ export default function ThumbnailList({
   currentIndex,
   onSelect,
 }: ThumbnailListProps) {
-  // 渲染单个行
-  const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => (
-    <div style={style}>
-      <ThumbnailItem
-        group={groups[index]}
-        index={index}
-        isSelected={currentIndex === index}
-        onSelect={() => onSelect(index)}
-      />
-    </div>
-  )
+  // 使用 useMemo 优化数据源
+  const dataSource = useMemo(() => groups, [groups])
 
   return (
     <div
       style={{
         height: '100%',
+        overflow: 'auto',
         background: '#fafafa',
+        padding: '8px',
       }}
     >
-      <AutoSizer>
-        {({ height, width }) => (
-          <List
-            height={height}
-            itemCount={groups.length}
-            itemSize={80} // 每项高度
-            width={width}
-            overscanCount={5} // 预渲染额外的项
-          >
-            {Row}
-          </List>
+      <List
+        dataSource={dataSource}
+        renderItem={(group, index) => (
+          <ThumbnailItem
+            key={group.id}
+            group={group}
+            index={index}
+            isSelected={currentIndex === index}
+            onSelect={() => onSelect(index)}
+          />
         )}
-      </AutoSizer>
+      />
     </div>
   )
 }

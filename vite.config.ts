@@ -26,19 +26,23 @@ export default defineConfig({
     port: 3000,
   },
   build: {
-    // 代码分割优化
+    // 禁用代码分割，使用单个包以提升加载速度
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom'],
-          'antd-vendor': ['antd', '@ant-design/icons'],
-          'zustand-vendor': ['zustand'],
-        },
+        manualChunks: undefined, // 禁用代码分割
       },
     },
-    // 启用源码映射（便于调试，但可以关闭以减小体积）
+    // 关闭源码映射以减小体积
     sourcemap: false,
-    // 减小 chunk 大小警告阈值
-    chunkSizeWarningLimit: 1000,
+    // 增大 chunk 大小警告阈值
+    chunkSizeWarningLimit: 2000,
+    // 启用压缩优化
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: false, // 保留 console，便于调试
+        drop_debugger: true,
+      },
+    },
   },
 })

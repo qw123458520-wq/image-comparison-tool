@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Layout, Menu, Button, message, Modal } from 'antd'
 import {
   SettingOutlined,
@@ -170,6 +170,16 @@ function App() {
     }
   }
 
+  // 使用 useMemo 缓存页面组件，避免重复创建
+  const emptyView = useMemo(() => (
+    <div style={{ textAlign: 'center', padding: '60px 0' }}>
+      <PictureOutlined style={{ fontSize: '64px', color: '#ccc' }} />
+      <p style={{ marginTop: '16px', color: '#999' }}>
+        还没有加载图片，请先配置并加载图片
+      </p>
+    </div>
+  ), [])
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Header style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -214,37 +224,18 @@ function App() {
         </Sider>
 
         <Content style={{ background: '#f0f2f5', overflow: 'auto' }}>
-          {currentMenu === 'config' && <ConfigPanel />}
+          {/* 使用 display 控制显示/隐藏，而不是条件渲染，避免组件销毁和重建 */}
+          <div style={{ display: currentMenu === 'config' ? 'block' : 'none', height: '100%' }}>
+            <ConfigPanel />
+          </div>
 
-          {currentMenu === 'compare' && (
-            <>
-              {groups.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '60px 0' }}>
-                  <PictureOutlined style={{ fontSize: '64px', color: '#ccc' }} />
-                  <p style={{ marginTop: '16px', color: '#999' }}>
-                    还没有加载图片，请先配置并加载图片
-                  </p>
-                </div>
-              ) : (
-                <ComparisonView />
-              )}
-            </>
-          )}
+          <div style={{ display: currentMenu === 'compare' ? 'block' : 'none', height: '100%' }}>
+            {groups.length === 0 ? emptyView : <ComparisonView />}
+          </div>
 
-          {currentMenu === 'large-view' && (
-            <>
-              {groups.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '60px 0' }}>
-                  <PictureOutlined style={{ fontSize: '64px', color: '#ccc' }} />
-                  <p style={{ marginTop: '16px', color: '#999' }}>
-                    还没有加载图片，请先配置并加载图片
-                  </p>
-                </div>
-              ) : (
-                <LargeImageView />
-              )}
-            </>
-          )}
+          <div style={{ display: currentMenu === 'large-view' ? 'block' : 'none', height: '100%' }}>
+            {groups.length === 0 ? emptyView : <LargeImageView />}
+          </div>
         </Content>
       </Layout>
     </Layout>

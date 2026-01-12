@@ -126,6 +126,9 @@ export default function ConfigPanel() {
   const handleMatchModeChange = async (mode: MatchMode) => {
     if (!config) return
 
+    // 避免重复更新
+    if (config.matchRules.mode === mode) return
+
     try {
       await updateConfig({
         matchRules: {
@@ -133,7 +136,7 @@ export default function ConfigPanel() {
           mode,
         },
       })
-      message.success('匹配模式已更新')
+      message.success('匹配模式已更新', 1.5) // 缩短显示时间
     } catch (error) {
       message.error('更新模式失败')
     }
@@ -147,13 +150,17 @@ export default function ConfigPanel() {
     // 只有当值真正改变时才保存
     if (value !== config.matchRules.groupSize) {
       try {
+        // 更新值到本地状态（确保显示正确）
+        setGroupSize(value)
+
         await updateConfig({
           matchRules: {
             ...config.matchRules,
             groupSize: value,
           },
         })
-        message.success('分组大小已更新')
+        // 缩短消息显示时间，减少干扰
+        message.success('分组大小已更新', 1)
       } catch (error) {
         message.error('更新分组大小失败')
       }

@@ -21,6 +21,9 @@ const __dirname = path.dirname(__filename)
 // 启用硬件加速以提升性能
 // app.disableHardwareAcceleration() // 已注释 - 硬件加速可显著提升图像渲染性能
 
+// 全局窗口引用（避免被垃圾回收）
+let mainWindow: BrowserWindow | null = null
+
 // 存储允许访问的文件夹路径（白名单）
 const allowedPaths = new Set<string>()
 
@@ -59,7 +62,7 @@ function isPathSafe(filePath: string): boolean {
 }
 
 function createWindow() {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     webPreferences: {
@@ -135,6 +138,14 @@ function createWindow() {
     // 生产环境加载构建后的文件
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
+
+  // macOS：关闭窗口时隐藏而不是退出（提升性能，避免重新加载）
+  mainWindow.on('close', (event) => {
+    if (process.platform === 'darwin' && !app.isQuitting) {
+      event.preventDefault()
+      mainWindow?.hide()
+    }
+  })
 }
 
 // 设置 IPC 处理器
@@ -305,8 +316,10 @@ app.whenReady().then(() => {
   createWindow()
 
   app.on('activate', () => {
-    // 在 macOS 上，当点击 dock 图标且没有其他窗口打开时，重新创建一个窗口
-    if (BrowserWindow.getAllWindows().length === 0) {
+    // 在 macOS 上，当点击 dock 图标时显示窗口
+    if (mainWindow) {
+      mainWindow.show()
+    } else {
       createWindow()
     }
   })
@@ -324,5 +337,6 @@ app.on('window-all-closed', () => {
 
 // 应用退出前关闭数据库
 app.on('before-quit', () => {
+  app.isQuitting = true
   closeDatabase()
 })

@@ -18,8 +18,8 @@ import type { Config, ImageGroup } from './types'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// 禁用硬件加速（避免 GPU 进程崩溃）
-app.disableHardwareAcceleration()
+// 启用硬件加速以提升性能
+// app.disableHardwareAcceleration() // 已注释 - 硬件加速可显著提升图像渲染性能
 
 // 存储允许访问的文件夹路径（白名单）
 const allowedPaths = new Set<string>()
@@ -71,6 +71,9 @@ function createWindow() {
       allowRunningInsecureContent: false, // 禁止不安全内容
       // 禁用外部导航
       navigateOnDragDrop: false,
+      // 性能优化
+      backgroundThrottling: false, // 禁用后台节流，保持流畅
+      enableWebSQL: false, // 禁用不需要的功能
     },
   })
 

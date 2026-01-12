@@ -1,8 +1,8 @@
 /**
- * 图片查看器组件 - 支持缩放和平移
+ * 图片查看器组件 - 支持缩放和平移（使用 memo 优化性能）
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, memo } from 'react'
 import { Card, Button, Space } from 'antd'
 import { ZoomInOutlined, ZoomOutOutlined, CheckCircleFilled, RedoOutlined } from '@ant-design/icons'
 
@@ -25,7 +25,7 @@ interface ImageViewerProps {
   fixedHeightMode?: boolean  // 是否使用固定高度模式（大图标注界面专用）
 }
 
-export default function ImageViewer({
+const ImageViewer = memo(function ImageViewer({
   src,
   alt,
   title,
@@ -273,4 +273,8 @@ export default function ImageViewer({
       </div>
     </Card>
   )
-}
+})
+
+ImageViewer.displayName = 'ImageViewer'
+
+export default ImageViewer

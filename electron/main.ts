@@ -18,6 +18,24 @@ import type { Config, ImageGroup } from './types'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+// ===========================================
+// GPU 和性能优化配置
+// ===========================================
+
+// macOS 特定优化：针对图像密集型应用
+if (process.platform === 'darwin') {
+  // 禁用后台节流，保持应用流畅
+  app.commandLine.appendSwitch('disable-renderer-backgrounding')
+  app.commandLine.appendSwitch('disable-background-timer-throttling')
+
+  // GPU 光栅化优化（提升图像渲染性能）
+  app.commandLine.appendSwitch('enable-gpu-rasterization')
+  app.commandLine.appendSwitch('enable-native-gpu-memory-buffers')
+  app.commandLine.appendSwitch('num-raster-threads', '4')
+
+  console.log('✓ [GPU] macOS 性能优化参数已应用')
+}
+
 // 启用硬件加速以提升性能
 // app.disableHardwareAcceleration() // 已注释 - 硬件加速可显著提升图像渲染性能
 
@@ -27,41 +45,71 @@ let mainWindow: BrowserWindow | null = null
 // 存储允许访问的文件夹路径（白名单）
 const allowedPaths = new Set<string>()
 
+// 路径安全检查缓存（性能优化）
+const pathSafetyCache = new Map<string, boolean>()
+const MAX_CACHE_SIZE = 10000
+const allowedExtensions = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff'])
+
 // 添加允许访问的路径
 export function addAllowedPath(folderPath: string) {
   // 规范化路径并添加到白名单
   const normalized = path.normalize(path.resolve(folderPath))
   allowedPaths.add(normalized)
   console.log('Added allowed path:', normalized)
+
+  // 清除路径缓存（因为白名单变化了）
+  pathSafetyCache.clear()
+  console.log('✓ 路径安全缓存已清除')
 }
 
-// 检查文件路径是否安全
+// 检查文件路径是否安全（带缓存优化）
 function isPathSafe(filePath: string): boolean {
-  const startTime = performance.now()
-  try {
-    // 规范化路径
-    const normalizedPath = path.normalize(path.resolve(filePath))
+  // 1. 先查缓存（最快路径）
+  if (pathSafetyCache.has(filePath)) {
+    return pathSafetyCache.get(filePath)!
+  }
 
-    // 检查文件是否在允许的路径内
-    for (const allowedPath of allowedPaths) {
-      if (normalizedPath.startsWith(allowedPath)) {
-        // 检查文件扩展名（只允许图片格式）
-        const ext = path.extname(normalizedPath).toLowerCase()
-        const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff']
-        if (allowedExtensions.includes(ext)) {
-          const duration = performance.now() - startTime
-          if (duration > 2) {
-            console.warn(`⚠️ [性能] isPathSafe 耗时: ${duration.toFixed(2)}ms (allowedPaths size: ${allowedPaths.size})`)
-          }
-          return true
-        }
-      }
+  const startTime = performance.now()
+
+  try {
+    // 2. 规范化路径
+    const normalizedPath = path.normalize(path.resolve(filePath))
+    const ext = path.extname(normalizedPath).toLowerCase()
+
+    // 3. 快速路径：扩展名检查前置（避免不必要的路径匹配）
+    if (!allowedExtensions.has(ext)) {
+      pathSafetyCache.set(filePath, false)
+      console.warn('Blocked: invalid extension:', ext)
+      return false
     }
 
-    console.warn('Blocked access to unsafe path:', normalizedPath)
-    return false
+    // 4. 检查文件是否在允许的路径内
+    const isAllowed = Array.from(allowedPaths).some(
+      allowedPath => normalizedPath.startsWith(allowedPath)
+    )
+
+    // 5. 缓存结果
+    if (pathSafetyCache.size >= MAX_CACHE_SIZE) {
+      // 清理最旧的 50% 缓存（简单 LRU）
+      const entriesToDelete = Array.from(pathSafetyCache.keys()).slice(0, MAX_CACHE_SIZE / 2)
+      entriesToDelete.forEach(key => pathSafetyCache.delete(key))
+      console.log(`✓ [缓存] 清理了 ${entriesToDelete.length} 条旧缓存`)
+    }
+    pathSafetyCache.set(filePath, isAllowed)
+
+    const duration = performance.now() - startTime
+    if (duration > 1) {
+      console.warn(`⚠️ [性能] isPathSafe 耗时: ${duration.toFixed(2)}ms (allowedPaths size: ${allowedPaths.size})`)
+    }
+
+    if (!isAllowed) {
+      console.warn('Blocked access to unsafe path:', normalizedPath)
+    }
+
+    return isAllowed
   } catch (error) {
     console.error('Path validation error:', error)
+    pathSafetyCache.set(filePath, false)
     return false
   }
 }
@@ -288,6 +336,40 @@ function setupIpcHandlers() {
     }
   )
 }
+
+// ===========================================
+// GPU 崩溃恢复机制
+// ===========================================
+
+// GPU 进程崩溃恢复
+app.on('gpu-process-crashed', (event, killed) => {
+  console.error('⚠️ [GPU] GPU 进程崩溃，正在恢复...', { killed })
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    // 重新加载窗口
+    mainWindow.reload()
+    console.log('✓ [GPU] 窗口已重新加载')
+  }
+})
+
+// 渲染进程崩溃恢复
+app.on('render-process-gone', (event, webContents, details) => {
+  console.error('⚠️ [渲染] 渲染进程异常退出:', details)
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (details.reason === 'crashed') {
+      console.warn('⚠️ [GPU] 检测到崩溃，禁用硬件加速后重启')
+      // 禁用硬件加速后重新加载
+      app.disableHardwareAcceleration()
+      mainWindow.reload()
+    }
+  }
+})
+
+// 子进程异常退出
+app.on('child-process-gone', (event, details) => {
+  console.error('⚠️ [子进程] 子进程异常退出:', details)
+})
 
 // 当 Electron 完成初始化时创建窗口
 app.whenReady().then(() => {

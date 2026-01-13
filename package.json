@@ -19,8 +19,8 @@
   },
   "build": {
     "appId": "com.imagetools.comparison",
-    "productName": "ImageComparisonTool",
-    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "productName": "图像对比标注工具",
+    "artifactName": "image-comparison-tool-${os}-${arch}.${ext}",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -31,15 +31,18 @@
       "node_modules/**/*",
       "package.json"
     ],
+    "asar": true,
     "asarUnpack": [
       "node_modules/better-sqlite3/**/*"
     ],
+    "compression": "maximum",
     "mac": {
       "target": [
         {
           "target": "zip",
           "arch": [
-            "x64"
+            "x64",
+            "arm64"
           ]
         }
       ],

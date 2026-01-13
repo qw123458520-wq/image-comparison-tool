@@ -31,6 +31,11 @@ const DEFAULT_CONFIG: Config = {
 const CONFIG_DIR = path.join(app.getPath('userData'), 'config')
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json')
 
+// 配置缓存（性能优化 - 避免频繁读取 asar）
+let configCache: Config | null = null
+let configCacheTime = 0
+const CACHE_TTL = 5000 // 5秒缓存
+
 /**
  * 确保配置目录存在
  */
@@ -39,9 +44,17 @@ async function ensureConfigDir(): Promise<void> {
 }
 
 /**
- * 读取配置文件
+ * 读取配置文件（带内存缓存）
  */
 export async function loadConfig(): Promise<Config> {
+  const now = Date.now()
+
+  // 使用缓存，避免频繁读取文件系统
+  if (configCache && now - configCacheTime < CACHE_TTL) {
+    console.log('✓ [缓存] 使用配置缓存')
+    return configCache
+  }
+
   const startTime = performance.now()
   try {
     await ensureConfigDir()
@@ -50,11 +63,16 @@ export async function loadConfig(): Promise<Config> {
       const data = await fs.readJson(CONFIG_FILE)
       const duration = performance.now() - startTime
       console.log(`✓ [性能] 配置读取耗时: ${duration.toFixed(2)}ms`)
+
       // 合并默认配置和用户配置
-      return { ...DEFAULT_CONFIG, ...data }
+      configCache = { ...DEFAULT_CONFIG, ...data }
+      configCacheTime = now
+      return configCache
     }
 
     // 如果配置文件不存在，创建默认配置
+    configCache = DEFAULT_CONFIG
+    configCacheTime = now
     await saveConfig(DEFAULT_CONFIG)
     return DEFAULT_CONFIG
   } catch (error) {
@@ -71,6 +89,11 @@ export async function saveConfig(config: Config): Promise<void> {
   try {
     await ensureConfigDir()
     await fs.writeJson(CONFIG_FILE, config, { spaces: 2 })
+
+    // 清除缓存，下次读取时重新加载
+    configCache = null
+    configCacheTime = 0
+
     const duration = performance.now() - startTime
     if (duration > 50) {
       console.warn(`⚠️ [性能] 配置保存耗时: ${duration.toFixed(2)}ms (超过50ms阈值)`)

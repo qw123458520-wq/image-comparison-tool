@@ -114,6 +114,7 @@
     "electron-builder": "^26.0.12",
     "electron-packager": "^17.1.2",
     "electron-rebuild": "^3.2.9",
+    "terser": "^5.44.1",
     "typescript": "~5.9.3",
     "vite": "^7.2.4",
     "vite-plugin-electron": "^0.29.0",

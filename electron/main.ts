@@ -37,6 +37,7 @@ export function addAllowedPath(folderPath: string) {
 
 // 检查文件路径是否安全
 function isPathSafe(filePath: string): boolean {
+  const startTime = performance.now()
   try {
     // 规范化路径
     const normalizedPath = path.normalize(path.resolve(filePath))
@@ -48,6 +49,10 @@ function isPathSafe(filePath: string): boolean {
         const ext = path.extname(normalizedPath).toLowerCase()
         const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff']
         if (allowedExtensions.includes(ext)) {
+          const duration = performance.now() - startTime
+          if (duration > 2) {
+            console.warn(`⚠️ [性能] isPathSafe 耗时: ${duration.toFixed(2)}ms (allowedPaths size: ${allowedPaths.size})`)
+          }
           return true
         }
       }
@@ -294,7 +299,9 @@ app.whenReady().then(() => {
   }
 
   // 注册自定义协议以访问本地文件（带安全验证）
+  let protocolCallCount = 0
   protocol.registerFileProtocol('local', (request, callback) => {
+    const startTime = performance.now()
     const url = request.url.replace('local://', '')
     try {
       const filePath = decodeURIComponent(url)
@@ -303,6 +310,18 @@ app.whenReady().then(() => {
       if (!isPathSafe(filePath)) {
         console.error('Access denied: unsafe path', filePath)
         return callback({ error: -10 }) // 返回错误
+      }
+
+      const duration = performance.now() - startTime
+      protocolCallCount++
+
+      if (duration > 5) {
+        console.warn(`⚠️ [性能] local:// 协议处理耗时: ${duration.toFixed(2)}ms (#${protocolCallCount})`)
+      }
+
+      // 每100次调用输出一次统计
+      if (protocolCallCount % 100 === 0) {
+        console.log(`📊 [统计] local:// 协议已调用 ${protocolCallCount} 次`)
       }
 
       return callback(filePath)

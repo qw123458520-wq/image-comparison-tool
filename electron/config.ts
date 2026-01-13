@@ -42,11 +42,14 @@ async function ensureConfigDir(): Promise<void> {
  * 读取配置文件
  */
 export async function loadConfig(): Promise<Config> {
+  const startTime = performance.now()
   try {
     await ensureConfigDir()
 
     if (await fs.pathExists(CONFIG_FILE)) {
       const data = await fs.readJson(CONFIG_FILE)
+      const duration = performance.now() - startTime
+      console.log(`✓ [性能] 配置读取耗时: ${duration.toFixed(2)}ms`)
       // 合并默认配置和用户配置
       return { ...DEFAULT_CONFIG, ...data }
     }
@@ -64,9 +67,16 @@ export async function loadConfig(): Promise<Config> {
  * 保存配置文件
  */
 export async function saveConfig(config: Config): Promise<void> {
+  const startTime = performance.now()
   try {
     await ensureConfigDir()
     await fs.writeJson(CONFIG_FILE, config, { spaces: 2 })
+    const duration = performance.now() - startTime
+    if (duration > 50) {
+      console.warn(`⚠️ [性能] 配置保存耗时: ${duration.toFixed(2)}ms (超过50ms阈值)`)
+    } else {
+      console.log(`✓ [性能] 配置保存耗时: ${duration.toFixed(2)}ms`)
+    }
   } catch (error) {
     console.error('Failed to save config:', error)
     throw error
@@ -79,9 +89,15 @@ export async function saveConfig(config: Config): Promise<void> {
 export async function updateConfig(
   updates: Partial<Config>
 ): Promise<Config> {
+  const startTime = performance.now()
   const currentConfig = await loadConfig()
   const newConfig = { ...currentConfig, ...updates }
   await saveConfig(newConfig)
+  const duration = performance.now() - startTime
+  console.log(`✓ [性能] 配置更新总耗时: ${duration.toFixed(2)}ms (读取+保存)`)
+  if (duration > 100) {
+    console.warn(`⚠️ [性能警告] 配置更新耗时超过100ms，可能影响用户体验`)
+  }
   return newConfig
 }
 

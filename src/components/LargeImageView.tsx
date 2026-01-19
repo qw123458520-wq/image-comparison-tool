@@ -26,6 +26,7 @@ import { useConfigStore } from '../store/configStore'
 
 export default function LargeImageView() {
   const {
+    groups,
     getCurrentGroup,
     currentIndex,
     totalCount,

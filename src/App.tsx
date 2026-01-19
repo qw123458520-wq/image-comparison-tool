@@ -97,7 +97,7 @@ function App() {
         return
       }
 
-      const { nextImage, prevImage, setQKeyPressed } = useImageStore.getState()
+      const { nextImage, prevImage, setQKeyPressed, setWKeyPressed } = useImageStore.getState()
       const { mode, setMode } = useAnnotationStore.getState()
 
       switch (e.key) {
@@ -118,6 +118,11 @@ function App() {
           e.preventDefault()
           setQKeyPressed(true)  // 按下Q键，图片位置循环前移
           break
+        case 'w':
+        case 'W':
+          e.preventDefault()
+          setWKeyPressed(true)  // 按下W键，除第一张图外都与第一张图切换
+          break
         case 'Tab':
           e.preventDefault()
           // 切换标注模式
@@ -133,12 +138,18 @@ function App() {
       // 只在对比页面和大图标注页面生效
       if ((currentMenu !== 'compare' && currentMenu !== 'large-view') || groups.length === 0) return
 
-      const { setQKeyPressed } = useImageStore.getState()
+      const { setQKeyPressed, setWKeyPressed } = useImageStore.getState()
 
       // 松开Q键，恢复原始位置
       if (e.key === 'q' || e.key === 'Q') {
         e.preventDefault()
         setQKeyPressed(false)
+      }
+
+      // 松开W键，恢复原始位置
+      if (e.key === 'w' || e.key === 'W') {
+        e.preventDefault()
+        setWKeyPressed(false)
       }
     }
 

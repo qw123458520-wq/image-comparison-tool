@@ -14,6 +14,7 @@ interface ImageState {
 
   // 新增：快捷键功能相关状态
   isQKeyPressed: boolean         // Q键是否按下（用于图片位置循环对比）
+  isWKeyPressed: boolean         // W键是否按下（用于与第一张图对比）
   selectedImages: Set<string>    // 选中的图片路径集合
 
   // 操作
@@ -25,6 +26,7 @@ interface ImageState {
 
   // 新增：快捷键功能相关操作
   setQKeyPressed: (pressed: boolean) => void
+  setWKeyPressed: (pressed: boolean) => void
   selectImage: (imagePath: string) => void
   deselectImage: (imagePath: string) => void
   clearSelection: () => void
@@ -39,6 +41,7 @@ export const useImageStore = create<ImageState>((set, get) => ({
 
   // 新增状态初始化
   isQKeyPressed: false,
+  isWKeyPressed: false,
   selectedImages: new Set<string>(),
 
   loadImages: async (config) => {
@@ -72,7 +75,8 @@ export const useImageStore = create<ImageState>((set, get) => ({
       set({
         currentIndex: currentIndex + 1,
         selectedImages: new Set(),  // 清空选择
-        isQKeyPressed: false  // 重置Q键状态
+        isQKeyPressed: false,  // 重置Q键状态
+        isWKeyPressed: false   // 重置W键状态
       })
     }
   },
@@ -83,7 +87,8 @@ export const useImageStore = create<ImageState>((set, get) => ({
       set({
         currentIndex: currentIndex - 1,
         selectedImages: new Set(),  // 清空选择
-        isQKeyPressed: false  // 重置Q键状态
+        isQKeyPressed: false,  // 重置Q键状态
+        isWKeyPressed: false   // 重置W键状态
       })
     }
   },
@@ -98,6 +103,11 @@ export const useImageStore = create<ImageState>((set, get) => ({
   // 设置Q键按下状态
   setQKeyPressed: (pressed) => {
     set({ isQKeyPressed: pressed })
+  },
+
+  // 设置W键按下状态
+  setWKeyPressed: (pressed) => {
+    set({ isWKeyPressed: pressed })
   },
 
   // 选择图片

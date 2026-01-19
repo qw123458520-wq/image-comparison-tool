@@ -28,8 +28,8 @@ export default function ImageComparison({
 }: ImageComparisonProps) {
   const { original, derivatives } = group
 
-  // 获取Q键按下状态
-  const { isQKeyPressed } = useImageStore()
+  // 获取Q键和W键按下状态
+  const { isQKeyPressed, isWKeyPressed } = useImageStore()
 
   // 获取当前标注模式和标注数据
   const { mode, getAnnotation } = useAnnotationStore()
@@ -160,7 +160,32 @@ export default function ImageComparison({
         <Row gutter={[12, 12]} style={{ margin: 0 }}>
           {allImages.map((imagePath, index) => {
             // 当Q键按下时，这个位置应该显示的图片
-            const alternateImagePath = displayImages[index]
+            const qKeyAlternateImagePath = displayImages[index]
+
+            // W键逻辑：除第一张图外，其他图片都切换到第一张图
+            // 第一张图（index === 0）alternateSrc为undefined，不会切换
+            // 后面的图片（index > 0）alternateSrc为第一张图
+            const wKeyAlternateSrc = index > 0 ? allImages[0] : undefined
+
+            // 最终的alternateSrc和showAlternate
+            // 优先使用W键逻辑，如果W键按下且有wKeyAlternateSrc，则使用W键逻辑
+            // 否则使用Q键逻辑
+            let finalAlternateSrc: string | undefined
+            let finalShowAlternate: boolean
+
+            if (isWKeyPressed && wKeyAlternateSrc) {
+              // W键按下，且当前图片有替换目标（不是第一张图）
+              finalAlternateSrc = wKeyAlternateSrc
+              finalShowAlternate = true
+            } else if (isQKeyPressed) {
+              // Q键按下
+              finalAlternateSrc = qKeyAlternateImagePath !== imagePath ? qKeyAlternateImagePath : undefined
+              finalShowAlternate = true
+            } else {
+              // 都没按下
+              finalAlternateSrc = undefined
+              finalShowAlternate = false
+            }
 
             // 找到该图片在原始数组中的位置，用于标题显示
             const isOriginal = imagePath === original
@@ -200,8 +225,8 @@ export default function ImageComparison({
                   onResetView={handleResetView}
                   rowCount={rowCount}
                   labelNumber={getLabelNumber(imagePath)}
-                  alternateSrc={alternateImagePath !== imagePath ? alternateImagePath : undefined}
-                  showAlternate={isQKeyPressed}
+                  alternateSrc={finalAlternateSrc}
+                  showAlternate={finalShowAlternate}
                 />
               </Col>
             )

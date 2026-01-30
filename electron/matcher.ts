@@ -5,7 +5,6 @@
 import * as path from 'path'
 import { scanImages, fileExists } from './fileManager'
 import type { Config, ImageGroup, MatchResult } from './types'
-import { nanoid } from 'nanoid'
 
 /**
  * 根据后缀模式查找派生文件
@@ -35,6 +34,15 @@ async function findDerivatives(
   }
 
   return derivatives
+}
+
+/**
+ * 为图片组生成稳定的 ID
+ * 这里使用原图路径作为分组 ID，保证同一批图片在多次加载时 ID 一致，
+ * 这样才能正确从数据库中恢复历史标注。
+ */
+function createGroupId(originalPath: string): string {
+  return originalPath
 }
 
 /**
@@ -83,7 +91,7 @@ async function matchSingleFolderDerivatives(
     // 只有存在派生图的原图才创建分组
     if (derivatives.length > 0) {
       groups.push({
-        id: nanoid(),
+        id: createGroupId(original),
         original,
         derivatives,
       })
@@ -132,7 +140,7 @@ async function matchFixedGroupSize(
       const derivatives = groupImages.slice(1)
 
       groups.push({
-        id: nanoid(),
+        id: createGroupId(original),
         original,
         derivatives,
       })
@@ -189,7 +197,7 @@ async function matchFolderToFolder(
     const derivatives = folderImages.slice(1).map(imgs => imgs[i])  // 其余文件夹的图片作为派生图
 
     groups.push({
-      id: nanoid(),
+      id: createGroupId(original),
       original,
       derivatives,
     })

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, protocol, shell } from 'electron'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 import * as fs from 'fs'
@@ -11,7 +11,20 @@ import {
   exportCSVReport,
   exportSummaryReport,
 } from './reportExporter'
-import { initDatabase, closeDatabase } from './database'
+import { initDatabase, closeDatabase, getAnnotationsForGroups, saveAnnotation, deleteAnnotation, clearAnnotations } from './database'
+import {
+  checkPythonEnvironment,
+  analyzeBatchImages,
+  generateClassificationPath,
+  scanImagesInFolder,
+} from './pythonManager'
+import {
+  matchSourceFiles,
+  matchDerivedFiles,
+  classifyFiles,
+  extractFilesBySuffix,
+} from './fileMatcher'
+import { searchFilesByName, transferFiles } from './fileSearch'
 import type { Config, ImageGroup } from './types'
 
 // ES Module 中获取 __dirname
@@ -192,11 +205,29 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
 
-  // macOS：关闭窗口时隐藏而不是退出（提升性能，避免重新加载）
+  // 关闭窗口前统一二次确认，防止误操作退出工具
   mainWindow.on('close', (event) => {
-    if (process.platform === 'darwin' && !app.isQuitting) {
-      event.preventDefault()
-      mainWindow?.hide()
+    // 如果已经在退出流程中（例如代码调用 app.quit），则不再弹窗
+    if ((app as any).isQuitting) {
+      return
+    }
+
+    event.preventDefault()
+
+    const result = dialog.showMessageBoxSync(mainWindow!, {
+      type: 'question',
+      buttons: ['取消', '退出'],
+      defaultId: 0,
+      cancelId: 0,
+      title: '确认关闭工具',
+      message: '确定要关闭图像比对工具吗？',
+      detail: '关闭后将退出当前工具窗口。已保存到本地数据库的数据不会丢失。',
+    })
+
+    if (result === 1) {
+      ;(app as any).isQuitting = true
+      // 用户确认后真正关闭窗口
+      mainWindow?.destroy()
     }
   })
 }
@@ -301,6 +332,26 @@ function setupIpcHandlers() {
     return await moveFiles(operations)
   })
 
+  // 获取文件/文件夹统计信息（用于拖拽验证）
+  ipcMain.handle('files:getStats', async (_event, filePath: string) => {
+    try {
+      const stats = fs.statSync(filePath)
+      const normalized = path.normalize(path.resolve(filePath))
+
+      if (stats.isDirectory()) {
+        addAllowedPath(normalized)  // 自动添加到白名单
+      }
+
+      return {
+        isDirectory: stats.isDirectory(),
+        isFile: stats.isFile(),
+        path: normalized,
+      }
+    } catch (error) {
+      return { error: '无法访问路径,请检查权限' }
+    }
+  })
+
   // 处理标注并移动文件
   ipcMain.handle(
     'annotation:process',
@@ -335,6 +386,298 @@ function setupIpcHandlers() {
       return await exportSummaryReport(groups, annotationsMap)
     }
   )
+
+  // ============================================
+  // 标注持久化相关 IPC handlers（仅操作数据库，不触发文件移动）
+  // ============================================
+
+  // 批量加载指定图片组的历史标注
+  ipcMain.handle('annotation:loadForGroups', async (_event, groupIds: string[]) => {
+    try {
+      if (!Array.isArray(groupIds) || groupIds.length === 0) {
+        return {}
+      }
+      return getAnnotationsForGroups(groupIds)
+    } catch (error) {
+      console.error('Failed to load annotations for groups:', error)
+      throw error
+    }
+  })
+
+  // 保存（新增 / 更新）单条标注
+  ipcMain.handle(
+    'annotation:save',
+    async (_event, payload: { groupId: string; mode: any; target: string; label: string }) => {
+      try {
+        const { groupId, mode, target, label } = payload
+        saveAnnotation(groupId, mode, target, label)
+        return { success: true }
+      } catch (error) {
+        console.error('Failed to save annotation:', error)
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    }
+  )
+
+  // 删除单条标注
+  ipcMain.handle(
+    'annotation:delete',
+    async (_event, payload: { groupId: string; target: string }) => {
+      try {
+        const { groupId, target } = payload
+        deleteAnnotation(groupId, target)
+        return { success: true }
+      } catch (error) {
+        console.error('Failed to delete annotation:', error)
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    }
+  )
+
+  // 清空某个图片组的全部标注
+  ipcMain.handle(
+    'annotation:clearGroup',
+    async (_event, payload: { groupId: string }) => {
+      try {
+        const { groupId } = payload
+        clearAnnotations(groupId)
+        return { success: true }
+      } catch (error) {
+        console.error('Failed to clear annotations for group:', error)
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    }
+  )
+
+  // ============================================
+  // 人脸识别相关 IPC handlers
+  // ============================================
+
+  // 检查 Python 环境
+  ipcMain.handle('face:checkEnvironment', async () => {
+    return await checkPythonEnvironment()
+  })
+
+  // 批量分析图片
+  ipcMain.handle('face:analyzeBatch', async (event, config) => {
+    console.log('🚀 IPC face:analyzeBatch handler called with config:', {
+      imageCount: config.imagePaths?.length || 0,
+      outputFolder: config.outputFolder,
+      pythonPath: config.pythonPath,
+      enableSecondaryClassification: config.enableSecondaryClassification
+    })
+
+    const results = []
+
+    // 将输出文件夹添加到白名单
+    if (config.outputFolder) {
+      addAllowedPath(config.outputFolder)
+    }
+
+    console.log('🔄 Calling analyzeBatchImages with', config.imagePaths.length, 'images')
+
+    // 批量分析
+    const analysisResults = await analyzeBatchImages(
+      config.imagePaths,
+      (progress) => {
+        // 发送进度到渲染进程
+        event.sender.send('face:analysisProgress', progress)
+      },
+      config.pythonPath
+    )
+
+    console.log('✅ analyzeBatchImages completed, processing', analysisResults.size, 'results')
+
+    // 生成分类路径
+    for (const [imagePath, result] of analysisResults) {
+      const targetPath = generateClassificationPath(result, config)
+      results.push({ imagePath, result, targetPath })
+    }
+
+    console.log('📤 Returning', results.length, 'results to renderer')
+    return results
+  })
+
+  // 执行文件分类移动
+  ipcMain.handle('face:classifyAndMove', async (_event, operations) => {
+    const moveResults = []
+
+    for (const op of operations) {
+      try {
+        const fse = await import('fs-extra')
+        await fse.ensureDir(op.targetPath)
+        const targetFile = path.join(op.targetPath, path.basename(op.sourcePath))
+        await fse.move(op.sourcePath, targetFile, { overwrite: false })
+
+        moveResults.push({
+          success: true,
+          source: op.sourcePath,
+          target: targetFile
+        })
+      } catch (error) {
+        moveResults.push({
+          success: false,
+          source: op.sourcePath,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
+
+    return moveResults
+  })
+
+  // 扫描文件夹中的图片
+  ipcMain.handle('face:scanImages', async (_event, folderPath: string) => {
+    try {
+      const imagePaths = await scanImagesInFolder(folderPath)
+      return imagePaths
+    } catch (error) {
+      console.error('Error scanning images:', error)
+      throw error
+    }
+  })
+
+  // ============================================
+  // 文件匹配工具相关 IPC handlers
+  // ============================================
+
+  // 匹配源文件
+  ipcMain.handle('fileMatcher:matchSourceFiles', async (_event, config) => {
+    const { sourceDir, targetDir, outputDir, stripSuffixes, recursive = true, useMove = false } = config
+
+    // 将文件夹添加到白名单
+    addAllowedPath(sourceDir)
+    addAllowedPath(targetDir)
+    addAllowedPath(outputDir)
+
+    try {
+      const result = await matchSourceFiles(sourceDir, targetDir, outputDir, stripSuffixes, recursive, useMove)
+      return result
+    } catch (error) {
+      console.error('Error matching source files:', error)
+      throw error
+    }
+  })
+
+  // 匹配派生文件
+  ipcMain.handle('fileMatcher:matchDerivedFiles', async (_event, config) => {
+    const { baseDir, targetDir, outputDir, stripSuffixes, recursive = true, useMove = false } = config
+
+    // 将文件夹添加到白名单
+    addAllowedPath(baseDir)
+    addAllowedPath(targetDir)
+    addAllowedPath(outputDir)
+
+    try {
+      const result = await matchDerivedFiles(baseDir, targetDir, outputDir, stripSuffixes, recursive, useMove)
+      return result
+    } catch (error) {
+      console.error('Error matching derived files:', error)
+      throw error
+    }
+  })
+
+  // 文件分类
+  ipcMain.handle('fileMatcher:classifyFiles', async (_event, config) => {
+    const { sourceDir, outputDir, derivedSuffixes, recursive = true, useMove = false } = config
+
+    // 将文件夹添加到白名单
+    addAllowedPath(sourceDir)
+    addAllowedPath(outputDir)
+
+    try {
+      const result = await classifyFiles(sourceDir, outputDir, derivedSuffixes, recursive, useMove)
+      return result
+    } catch (error) {
+      console.error('Error classifying files:', error)
+      throw error
+    }
+  })
+
+  // 抽取指定后缀文件
+  ipcMain.handle('fileMatcher:extractBySuffix', async (_event, config) => {
+    const { sourceDir, outputDir, derivedSuffixes, recursive = true, useMove = false } = config
+
+    // 将文件夹添加到白名单
+    addAllowedPath(sourceDir)
+    addAllowedPath(outputDir)
+
+    try {
+      const result = await extractFilesBySuffix(sourceDir, outputDir, derivedSuffixes, recursive, useMove)
+      return result
+    } catch (error) {
+      console.error('Error extracting files by suffix:', error)
+      throw error
+    }
+  })
+
+  // 文件名检索
+  ipcMain.handle('fileSearch:searchByName', async (_event, query) => {
+    const { rootDir } = query || {}
+
+    if (!rootDir) {
+      throw new Error('rootDir 不能为空')
+    }
+
+    // 将搜索根目录加入白名单，限制访问范围
+    addAllowedPath(rootDir)
+
+    try {
+      const result = await searchFilesByName(query)
+      return result
+    } catch (error) {
+      console.error('Error searching files by name:', error)
+      throw error
+    }
+  })
+
+  // 将检索结果复制/移动到指定文件夹
+  ipcMain.handle('fileSearch:copyFiles', async (_event, payload) => {
+    const { sourcePaths, targetDir, useMove = false } = payload || {}
+
+    if (!Array.isArray(sourcePaths) || sourcePaths.length === 0) {
+      throw new Error('sourcePaths 不能为空')
+    }
+    if (!targetDir) {
+      throw new Error('targetDir 不能为空')
+    }
+
+    addAllowedPath(targetDir)
+
+    try {
+      const result = await transferFiles(sourcePaths, targetDir, useMove)
+      return result
+    } catch (error) {
+      console.error('Error copying files from search results:', error)
+      throw error
+    }
+  })
+
+  // 在 Finder/资源管理器中打开文件所在文件夹并选中文件
+  ipcMain.handle('fileSearch:openInFinder', async (_event, filePath: string) => {
+    if (!filePath) {
+      throw new Error('filePath 不能为空')
+    }
+
+    // 验证路径是否安全（必须在白名单中）
+    const normalizedPath = path.normalize(path.resolve(filePath))
+    const isAllowed = Array.from(allowedPaths).some(
+      allowedPath => normalizedPath.startsWith(allowedPath)
+    )
+
+    if (!isAllowed) {
+      throw new Error('无权访问该文件路径')
+    }
+
+    try {
+      // 使用 shell.showItemInFolder 在 Finder/资源管理器中打开并选中文件
+      shell.showItemInFolder(normalizedPath)
+      return { success: true }
+    } catch (error) {
+      console.error('Error opening file in Finder:', error)
+      throw error
+    }
+  })
 }
 
 // ===========================================

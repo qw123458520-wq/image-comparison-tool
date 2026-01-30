@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 // 暴露安全的 API 给渲染进程
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -22,12 +22,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 文件操作
   files: {
     move: (operations: any) => ipcRenderer.invoke('files:move', operations),
+    getStats: (filePath: string) => ipcRenderer.invoke('files:getStats', filePath),
+    getPathForFile: (file: File) => webUtils.getPathForFile(file),
   },
 
   // 标注处理
   annotation: {
     process: (groups: any, config: any) =>
       ipcRenderer.invoke('annotation:process', groups, config),
+    // 从数据库批量加载指定图片组的历史标注
+    loadForGroups: (groupIds: string[]) =>
+      ipcRenderer.invoke('annotation:loadForGroups', groupIds),
+    // 将单条标注保存到数据库
+    save: (groupId: string, mode: any, target: string, label: string) =>
+      ipcRenderer.invoke('annotation:save', { groupId, mode, target, label }),
+    // 删除单条标注
+    delete: (groupId: string, target: string) =>
+      ipcRenderer.invoke('annotation:delete', { groupId, target }),
+    // 清空某个图片组的全部标注
+    clearGroup: (groupId: string) =>
+      ipcRenderer.invoke('annotation:clearGroup', { groupId }),
   },
 
   // 报告导出
@@ -38,6 +52,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('report:exportCSV', groups, annotations),
     exportSummary: (groups: any, annotations: any) =>
       ipcRenderer.invoke('report:exportSummary', groups, annotations),
+  },
+
+  // 人脸分析
+  face: {
+    checkEnvironment: () => ipcRenderer.invoke('face:checkEnvironment'),
+    analyzeBatch: (config: any) => ipcRenderer.invoke('face:analyzeBatch', config),
+    classifyAndMove: (operations: any) => ipcRenderer.invoke('face:classifyAndMove', operations),
+    scanImages: (folderPath: string) => ipcRenderer.invoke('face:scanImages', folderPath),
+    onProgress: (callback: (progress: any) => void) => {
+      const listener = (_event: any, progress: any) => callback(progress)
+      ipcRenderer.on('face:analysisProgress', listener)
+      return () => ipcRenderer.removeListener('face:analysisProgress', listener)
+    },
+  },
+
+  // 文件匹配工具
+  fileMatcher: {
+    matchSourceFiles: (config: any) => ipcRenderer.invoke('fileMatcher:matchSourceFiles', config),
+    matchDerivedFiles: (config: any) => ipcRenderer.invoke('fileMatcher:matchDerivedFiles', config),
+    classifyFiles: (config: any) => ipcRenderer.invoke('fileMatcher:classifyFiles', config),
+    extractBySuffix: (config: any) => ipcRenderer.invoke('fileMatcher:extractBySuffix', config),
+  },
+
+  // 文件名检索
+  fileSearch: {
+    searchByName: (query: any) => ipcRenderer.invoke('fileSearch:searchByName', query),
+    copyFiles: (payload: any) => ipcRenderer.invoke('fileSearch:copyFiles', payload),
+    openInFinder: (filePath: string) => ipcRenderer.invoke('fileSearch:openInFinder', filePath),
   },
 
   // 获取平台信息
@@ -59,14 +101,53 @@ export interface ElectronAPI {
   }
   files: {
     move: (operations: any) => Promise<any>
+    getStats: (filePath: string) => Promise<{
+      isDirectory?: boolean
+      isFile?: boolean
+      path?: string
+      error?: string
+    }>
+    getPathForFile: (file: File) => string
   }
   annotation: {
     process: (groups: any, config: any) => Promise<any>
+    loadForGroups: (
+      groupIds: string[]
+    ) => Promise<
+      Record<
+        string,
+        {
+          mode: string
+          labels: { target: string; label: string }[]
+        }
+      >
+    >
+    save: (groupId: string, mode: any, target: string, label: string) => Promise<any>
+    delete: (groupId: string, target: string) => Promise<any>
+    clearGroup: (groupId: string) => Promise<any>
   }
   report: {
     exportJSON: (groups: any, annotations: any) => Promise<any>
     exportCSV: (groups: any, annotations: any) => Promise<any>
     exportSummary: (groups: any, annotations: any) => Promise<any>
+  }
+  face: {
+    checkEnvironment: () => Promise<any>
+    analyzeBatch: (config: any) => Promise<any>
+    classifyAndMove: (operations: any) => Promise<any>
+    scanImages: (folderPath: string) => Promise<string[]>
+    onProgress: (callback: (progress: any) => void) => () => void
+  }
+  fileMatcher: {
+    matchSourceFiles: (config: any) => Promise<any>
+    matchDerivedFiles: (config: any) => Promise<any>
+    classifyFiles: (config: any) => Promise<any>
+    extractBySuffix: (config: any) => Promise<any>
+  }
+  fileSearch: {
+    searchByName: (query: any) => Promise<any>
+    copyFiles: (payload: any) => Promise<any>
+    openInFinder: (filePath: string) => Promise<{ success: boolean }>
   }
   platform: string
 }

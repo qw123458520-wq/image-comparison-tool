@@ -186,6 +186,66 @@ export function getAnnotations(groupId: string): Array<{
 }
 
 /**
+ * 批量获取多个图片组的标注
+ * 返回结构：{ [groupId]: { mode, labels: [{ target, label }] } }
+ * - mode：该组最近一次标注时使用的模式（默认回退为 'group'）
+ * - labels：去重后的目标标注列表（按创建时间倒序）
+ */
+export function getAnnotationsForGroups(groupIds: string[]): Record<string, {
+  mode: AnnotationMode
+  labels: { target: string; label: string }[]
+}> {
+  if (!db) throw new Error('Database not initialized')
+
+  if (groupIds.length === 0) {
+    return {}
+  }
+
+  // 使用 IN 查询一次性获取所有组的标注
+  const placeholders = groupIds.map(() => '?').join(',')
+  const stmt = db.prepare(`
+    SELECT group_id, target, label, mode
+    FROM annotations
+    WHERE group_id IN (${placeholders})
+    ORDER BY created_at DESC
+  `)
+
+  const rows = stmt.all(...groupIds) as Array<{
+    group_id: string
+    target: string
+    label: string
+    mode: AnnotationMode
+  }>
+
+  const result: Record<string, {
+    mode: AnnotationMode
+    labels: { target: string; label: string }[]
+  }> = {}
+
+  for (const row of rows) {
+    if (!result[row.group_id]) {
+      result[row.group_id] = {
+        mode: row.mode || 'group',
+        labels: [],
+      }
+    }
+
+    // 避免同一 target 出现多次，保留最新一条（因为已按 created_at DESC 排序）
+    const exists = result[row.group_id].labels.find(
+      (item) => item.target === row.target
+    )
+    if (!exists) {
+      result[row.group_id].labels.push({
+        target: row.target,
+        label: row.label,
+      })
+    }
+  }
+
+  return result
+}
+
+/**
  * 删除标注
  */
 export function deleteAnnotation(groupId: string, target: string): void {

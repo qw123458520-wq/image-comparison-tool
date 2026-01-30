@@ -87,6 +87,7 @@ export async function moveFile(
 
 /**
  * 复制文件到目标位置
+ * 如果目标文件已存在，自动添加数字后缀
  */
 export async function copyFile(
   sourcePath: string,
@@ -99,8 +100,21 @@ export async function copyFile(
     const targetFilename = filename || path.basename(sourcePath)
     const targetPath = path.join(targetDir, targetFilename)
 
-    await fs.copy(sourcePath, targetPath)
-    return targetPath
+    // 如果目标文件已存在，添加序号后缀
+    let finalTargetPath = targetPath
+    let counter = 1
+    while (await fs.pathExists(finalTargetPath)) {
+      const ext = path.extname(targetFilename)
+      const nameWithoutExt = path.basename(targetFilename, ext)
+      finalTargetPath = path.join(
+        targetDir,
+        `${nameWithoutExt}_${counter}${ext}`
+      )
+      counter++
+    }
+
+    await fs.copy(sourcePath, finalTargetPath)
+    return finalTargetPath
   } catch (error) {
     console.error('Failed to copy file:', error)
     throw error

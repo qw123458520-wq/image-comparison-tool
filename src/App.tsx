@@ -4,10 +4,17 @@ import {
   SettingOutlined,
   PictureOutlined,
   PlayCircleOutlined,
+  FolderOutlined,
+  UserOutlined,
+  FileTextOutlined,
+  SearchOutlined,
 } from '@ant-design/icons'
 import ConfigPanel from './components/ConfigPanel'
 import ComparisonView from './components/ComparisonView'
 import LargeImageView from './components/LargeImageView'
+import FaceAnalysisPanel from './components/FaceAnalysisPanel'
+import FileMatcherPanel from './components/FileMatcherPanel'
+import FileSearchPanel from './components/FileSearchPanel'
 import { useConfigStore } from './store/configStore'
 import { useImageStore } from './store/imageStore'
 import { useAnnotationStore } from './store/annotationStore'
@@ -15,12 +22,12 @@ import './App.css'
 
 const { Header, Content, Sider } = Layout
 
-type MenuItem = 'config' | 'compare' | 'large-view'
+type MenuItem = 'config' | 'compare' | 'large-view' | 'face-analysis' | 'file-matcher' | 'file-search'
 
 function App() {
   const [currentMenu, setCurrentMenu] = useState<MenuItem>('config')
   const { config } = useConfigStore()
-  const { loadImages, groups, totalCount, loading } = useImageStore()
+  const { groups, totalCount } = useImageStore()
 
   // 数字键快速标注处理函数
   const handleNumberKeyAnnotation = (key: string) => {
@@ -97,7 +104,7 @@ function App() {
         return
       }
 
-      const { nextImage, prevImage, setQKeyPressed } = useImageStore.getState()
+      const { nextImage, prevImage, setQKeyPressed, setWKeyPressed } = useImageStore.getState()
       const { mode, setMode } = useAnnotationStore.getState()
 
       switch (e.key) {
@@ -118,6 +125,11 @@ function App() {
           e.preventDefault()
           setQKeyPressed(true)  // 按下Q键，图片位置循环前移
           break
+        case 'w':
+        case 'W':
+          e.preventDefault()
+          setWKeyPressed(true)  // 按下W键，除第一张图外，剩余图片与第一张图切换
+          break
         case 'Tab':
           e.preventDefault()
           // 切换标注模式
@@ -133,12 +145,18 @@ function App() {
       // 只在对比页面和大图标注页面生效
       if ((currentMenu !== 'compare' && currentMenu !== 'large-view') || groups.length === 0) return
 
-      const { setQKeyPressed } = useImageStore.getState()
+      const { setQKeyPressed, setWKeyPressed } = useImageStore.getState()
 
       // 松开Q键，恢复原始位置
       if (e.key === 'q' || e.key === 'Q') {
         e.preventDefault()
         setQKeyPressed(false)
+      }
+
+      // 松开W键，恢复原始位置
+      if (e.key === 'w' || e.key === 'W') {
+        e.preventDefault()
+        setWKeyPressed(false)
       }
     }
 
@@ -149,26 +167,6 @@ function App() {
       window.removeEventListener('keyup', handleKeyUp)
     }
   }, [currentMenu, groups])
-
-  const handleLoadImages = async () => {
-    if (!config) {
-      message.error('请先配置文件夹和后缀模式')
-      return
-    }
-
-    if (!config.matchRules.sourceFolder) {
-      message.error('请选择源文件夹')
-      return
-    }
-
-    try {
-      await loadImages(config)
-      message.success(`成功加载 ${totalCount} 组图片`)
-      setCurrentMenu('compare')
-    } catch (error) {
-      message.error('加载图片失败')
-    }
-  }
 
   // 使用 useMemo 缓存页面组件，避免重复创建
   const emptyView = useMemo(() => (
@@ -186,15 +184,6 @@ function App() {
         <div style={{ color: 'white', fontSize: '18px', fontWeight: 'bold' }}>
           图像对比标注工具
         </div>
-        <div style={{ flex: 1 }} />
-        <Button
-          type="primary"
-          icon={<PlayCircleOutlined />}
-          onClick={handleLoadImages}
-          loading={loading}
-        >
-          加载图片
-        </Button>
       </Header>
 
       <Layout>
@@ -205,19 +194,41 @@ function App() {
             onClick={(e) => setCurrentMenu(e.key as MenuItem)}
             items={[
               {
-                key: 'config',
-                icon: <SettingOutlined />,
-                label: '配置',
+                key: 'data-cleaning',
+                icon: <FolderOutlined />,
+                label: '数据清洗',
+                children: [
+                  {
+                    key: 'config',
+                    icon: <SettingOutlined />,
+                    label: '配置',
+                  },
+                  {
+                    key: 'compare',
+                    icon: <PictureOutlined />,
+                    label: `界面一 ${totalCount > 0 ? `(${totalCount})` : ''}`,
+                  },
+                  {
+                    key: 'large-view',
+                    icon: <PictureOutlined />,
+                    label: `界面二 ${totalCount > 0 ? `(${totalCount})` : ''}`,
+                  },
+                ],
               },
               {
-                key: 'compare',
-                icon: <PictureOutlined />,
-                label: `界面一 ${totalCount > 0 ? `(${totalCount})` : ''}`,
+                key: 'face-analysis',
+                icon: <UserOutlined />,
+                label: '人脸分析',
               },
               {
-                key: 'large-view',
-                icon: <PictureOutlined />,
-                label: `界面二 ${totalCount > 0 ? `(${totalCount})` : ''}`,
+                key: 'file-matcher',
+                icon: <FileTextOutlined />,
+                label: '文件匹配',
+              },
+              {
+                key: 'file-search',
+                icon: <SearchOutlined />,
+                label: '文件检索',
               },
             ]}
           />
@@ -229,12 +240,24 @@ function App() {
             <ConfigPanel />
           </div>
 
+          <div style={{ display: currentMenu === 'face-analysis' ? 'block' : 'none', height: '100%' }}>
+            <FaceAnalysisPanel />
+          </div>
+
           <div style={{ display: currentMenu === 'compare' ? 'block' : 'none', height: '100%' }}>
             {groups.length === 0 ? emptyView : <ComparisonView />}
           </div>
 
           <div style={{ display: currentMenu === 'large-view' ? 'block' : 'none', height: '100%' }}>
             {groups.length === 0 ? emptyView : <LargeImageView />}
+          </div>
+
+          <div style={{ display: currentMenu === 'file-matcher' ? 'block' : 'none', height: '100%' }}>
+            <FileMatcherPanel />
+          </div>
+
+          <div style={{ display: currentMenu === 'file-search' ? 'block' : 'none', height: '100%' }}>
+            <FileSearchPanel />
           </div>
         </Content>
       </Layout>

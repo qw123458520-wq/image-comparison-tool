@@ -25,6 +25,11 @@ const DEFAULT_CONFIG: Config = {
     generateReport: true,
     targetFolders: {},
   },
+  faceAnalysis: {
+    enabled: false,
+    enableSecondaryClassification: false,
+    ageRanges: ['0-18', '19-30', '31-45', '46-60', '60+'],
+  },
 }
 
 // 配置文件路径

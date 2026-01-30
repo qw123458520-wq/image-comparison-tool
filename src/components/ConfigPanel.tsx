@@ -21,8 +21,11 @@ import {
   UpOutlined,
   DownOutlined,
   DeleteOutlined,
+  PlayCircleOutlined,
 } from '@ant-design/icons'
 import { useConfigStore } from '../store/configStore'
+import { useImageStore } from '../store/imageStore'
+import { useFolderDrop } from '../hooks/useFolderDrop'
 import type { MatchMode } from '../types'
 
 export default function ConfigPanel() {
@@ -38,6 +41,7 @@ export default function ConfigPanel() {
     moveFolderUp,
     moveFolderDown,
   } = useConfigStore()
+  const { loadImages, totalCount, loading: imageLoading } = useImageStore()
   const [newSuffix, setNewSuffix] = useState('')
   const [newLabel, setNewLabel] = useState('')
   const [groupSize, setGroupSize] = useState<number | undefined>(undefined)
@@ -52,6 +56,30 @@ export default function ConfigPanel() {
       setGroupSize(config.matchRules.groupSize)
     }
   }, [config?.matchRules.groupSize])
+
+  // 源文件夹拖拽
+  const sourceFolderDrop = useFolderDrop({
+    onFolderSelected: async (folder) => {
+      await setSourceFolder(folder)
+    },
+    successMessage: '源文件夹设置成功',
+  })
+
+  // 输出文件夹拖拽
+  const outputFolderDrop = useFolderDrop({
+    onFolderSelected: async (folder) => {
+      await setOutputFolder(folder)
+    },
+    successMessage: '输出文件夹设置成功',
+  })
+
+  // 文件夹列表拖拽
+  const folderListDrop = useFolderDrop({
+    onFolderSelected: async (folder) => {
+      await addFolderToList(folder)
+    },
+    successMessage: '文件夹已添加',
+  })
 
   const handleSelectFolder = async () => {
     try {
@@ -167,6 +195,33 @@ export default function ConfigPanel() {
     }
   }
 
+  const handleLoadImages = async () => {
+    if (!config) {
+      message.error('请先配置文件夹和后缀模式')
+      return
+    }
+
+    // 根据不同模式进行验证
+    if (config.matchRules.mode === 'folder-to-folder') {
+      if (!config.matchRules.folderList || config.matchRules.folderList.length < 2) {
+        message.error('文件夹对文件夹模式至少需要添加2个文件夹')
+        return
+      }
+    } else {
+      if (!config.matchRules.sourceFolder) {
+        message.error('请先选择源文件夹')
+        return
+      }
+    }
+
+    try {
+      const loadedCount = await loadImages(config)
+      message.success(`成功加载 ${loadedCount} 组图片`)
+    } catch (error) {
+      message.error('加载图片失败')
+    }
+  }
+
   if (!config) {
     return <div>加载配置中...</div>
   }
@@ -197,12 +252,26 @@ export default function ConfigPanel() {
               <Space.Compact style={{ width: '100%' }}>
                 <Input
                   value={config.matchRules.sourceFolder || ''}
-                  placeholder="选择包含图片的文件夹"
+                  placeholder="选择包含图片的文件夹或拖拽至此"
                   readOnly
+                  style={{
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    height: '40px',
+                    fontSize: '14px',
+                    ...(sourceFolderDrop.isDragging ? {
+                      borderColor: '#1890ff',
+                      borderWidth: 2,
+                      backgroundColor: '#e6f7ff',
+                      boxShadow: '0 0 8px rgba(24, 144, 255, 0.3)',
+                    } : {}),
+                  }}
+                  {...sourceFolderDrop.dragHandlers}
                 />
                 <Button
                   icon={<FolderOpenOutlined />}
                   onClick={handleSelectFolder}
+                  style={{ height: '40px' }}
                 >
                   选择
                 </Button>
@@ -217,12 +286,26 @@ export default function ConfigPanel() {
                 <Space.Compact style={{ width: '100%' }}>
                   <Input
                     value={config.matchRules.sourceFolder || ''}
-                    placeholder="选择包含图片的文件夹"
+                    placeholder="选择包含图片的文件夹或拖拽至此"
                     readOnly
+                    style={{
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                      height: '40px',
+                      fontSize: '14px',
+                      ...(sourceFolderDrop.isDragging ? {
+                        borderColor: '#1890ff',
+                        borderWidth: 2,
+                        backgroundColor: '#e6f7ff',
+                        boxShadow: '0 0 8px rgba(24, 144, 255, 0.3)',
+                      } : {}),
+                    }}
+                    {...sourceFolderDrop.dragHandlers}
                   />
                   <Button
                     icon={<FolderOpenOutlined />}
                     onClick={handleSelectFolder}
+                    style={{ height: '40px' }}
                   >
                     选择
                   </Button>
@@ -316,23 +399,42 @@ export default function ConfigPanel() {
                   )}
 
                   {/* 添加文件夹按钮 */}
-                  <Button
-                    icon={<FolderOpenOutlined />}
-                    onClick={async () => {
-                      try {
-                        const folder = await window.electronAPI.dialog.selectFolder()
-                        if (folder) {
-                          await addFolderToList(folder)
-                          message.success('文件夹已添加')
+                  <Space.Compact style={{ width: '100%' }}>
+                    <Input
+                      placeholder="点击按钮选择文件夹或拖拽至此"
+                      readOnly
+                      style={{
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        height: '40px',
+                        fontSize: '14px',
+                        ...(folderListDrop.isDragging ? {
+                          borderColor: '#1890ff',
+                          borderWidth: 2,
+                          backgroundColor: '#e6f7ff',
+                          boxShadow: '0 0 8px rgba(24, 144, 255, 0.3)',
+                        } : {}),
+                      }}
+                      {...folderListDrop.dragHandlers}
+                    />
+                    <Button
+                      icon={<FolderOpenOutlined />}
+                      onClick={async () => {
+                        try {
+                          const folder = await window.electronAPI.dialog.selectFolder()
+                          if (folder) {
+                            await addFolderToList(folder)
+                            message.success('文件夹已添加')
+                          }
+                        } catch (error) {
+                          message.error('添加文件夹失败')
                         }
-                      } catch (error) {
-                        message.error('添加文件夹失败')
-                      }
-                    }}
-                    block
-                  >
-                    添加文件夹
-                  </Button>
+                      }}
+                      style={{ height: '40px' }}
+                    >
+                      添加文件夹
+                    </Button>
+                  </Space.Compact>
                 </Space>
               </Form.Item>
             </>
@@ -386,12 +488,26 @@ export default function ConfigPanel() {
             <Space.Compact style={{ width: '100%' }}>
               <Input
                 value={config.output.outputFolder || ''}
-                placeholder="选择输出文件夹"
+                placeholder="选择输出文件夹或拖拽至此"
                 readOnly
+                style={{
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  height: '40px',
+                  fontSize: '14px',
+                  ...(outputFolderDrop.isDragging ? {
+                    borderColor: '#1890ff',
+                    borderWidth: 2,
+                    backgroundColor: '#e6f7ff',
+                    boxShadow: '0 0 8px rgba(24, 144, 255, 0.3)',
+                  } : {}),
+                }}
+                {...outputFolderDrop.dragHandlers}
               />
               <Button
                 icon={<FolderOpenOutlined />}
                 onClick={handleSelectOutputFolder}
+                style={{ height: '40px' }}
               >
                 选择
               </Button>
@@ -430,6 +546,26 @@ export default function ConfigPanel() {
             </Space>
           </Form.Item>
         </Form>
+
+        <Divider />
+
+        {/* 加载图片按钮 */}
+        <div style={{ textAlign: 'center' }}>
+          <Button
+            type="primary"
+            size="large"
+            icon={<PlayCircleOutlined />}
+            onClick={handleLoadImages}
+            loading={imageLoading}
+          >
+            加载图片
+          </Button>
+          {totalCount > 0 && (
+            <div style={{ marginTop: '12px', color: '#52c41a' }}>
+              已加载 {totalCount} 组图片
+            </div>
+          )}
+        </div>
       </Card>
     </div>
   )

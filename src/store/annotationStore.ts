@@ -22,6 +22,12 @@ interface AnnotationState {
   clearAnnotation: (groupId: string) => void
   clearAllAnnotations: () => void  // 清空所有标注
   hasAnnotation: (groupId: string) => boolean
+
+  // 从数据库恢复标注
+  hydrateFromDB: (data: Record<string, {
+    mode: AnnotationMode | string
+    labels: { target: string; label: string }[]
+  }>) => void
 }
 
 export const useAnnotationStore = create<AnnotationState>((set, get) => ({
@@ -57,6 +63,13 @@ export const useAnnotationStore = create<AnnotationState>((set, get) => ({
 
     newAnnotations.set(groupId, existing)
     set({ annotations: newAnnotations })
+
+    // 持久化到数据库（忽略异常，避免阻塞 UI）
+    void window.electronAPI.annotation
+      .save(groupId, mode, target, label)
+      .catch((error) => {
+        console.error('Failed to persist annotation:', error)
+      })
   },
 
   getAnnotation: (groupId) => {
@@ -68,6 +81,13 @@ export const useAnnotationStore = create<AnnotationState>((set, get) => ({
     const newAnnotations = new Map(annotations)
     newAnnotations.delete(groupId)
     set({ annotations: newAnnotations })
+
+    // 清空该组在数据库中的标注
+    void window.electronAPI.annotation
+      .clearGroup(groupId)
+      .catch((error) => {
+        console.error('Failed to clear annotations for group in DB:', error)
+      })
   },
 
   hasAnnotation: (groupId) => {
@@ -92,6 +112,13 @@ export const useAnnotationStore = create<AnnotationState>((set, get) => ({
       }
 
       set({ annotations: newAnnotations })
+
+      // 同步删除数据库中的对应标注
+      void window.electronAPI.annotation
+        .delete(groupId, target)
+        .catch((error) => {
+          console.error('Failed to delete annotation in DB:', error)
+        })
     }
   },
 
@@ -114,10 +141,54 @@ export const useAnnotationStore = create<AnnotationState>((set, get) => ({
       }
 
       set({ annotations: newAnnotations })
+
+      // 批量删除数据库中的标注
+      targets.forEach((target) => {
+        void window.electronAPI.annotation
+          .delete(groupId, target)
+          .catch((error) => {
+            console.error('Failed to delete annotation in DB:', error)
+          })
+      })
     }
   },
 
   clearAllAnnotations: () => {
+    const { annotations } = get()
+    const groupIds = Array.from(annotations.keys())
+
     set({ annotations: new Map() })
+
+    // 清空所有组在数据库中的标注（逐组清理，避免新增全清接口）
+    groupIds.forEach((groupId) => {
+      void window.electronAPI.annotation
+        .clearGroup(groupId)
+        .catch((error) => {
+          console.error('Failed to clear annotations for group in DB:', error)
+        })
+    })
+  },
+
+  // 从数据库恢复标注到内存
+  hydrateFromDB: (data) => {
+    const map = new Map<string, ImageGroup['annotations']>()
+
+    Object.entries(data).forEach(([groupId, value]) => {
+      if (!value || !Array.isArray(value.labels) || value.labels.length === 0) {
+        return
+      }
+
+      map.set(groupId, {
+        mode: (value.mode as AnnotationMode) || 'group',
+        labels: value.labels.map((item) => ({
+          target: item.target,
+          label: item.label,
+        })),
+      })
+    })
+
+    if (map.size > 0) {
+      set({ annotations: map })
+    }
   },
 }))

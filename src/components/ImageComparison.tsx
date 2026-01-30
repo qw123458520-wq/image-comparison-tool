@@ -28,8 +28,8 @@ export default function ImageComparison({
 }: ImageComparisonProps) {
   const { original, derivatives } = group
 
-  // 获取Q键按下状态
-  const { isQKeyPressed } = useImageStore()
+  // 获取Q键和W键按下状态
+  const { isQKeyPressed, isWKeyPressed } = useImageStore()
 
   // 获取当前标注模式和标注数据
   const { mode, getAnnotation } = useAnnotationStore()
@@ -46,17 +46,13 @@ export default function ImageComparison({
   // 获取图片的标签索引（1-10）
   const getLabelNumber = (imagePath: string): number | undefined => {
     // 显示标签数字的条件：
-    // 1. 单张标注模式
-    // 2. 固定分组模式 + 每组1张图片 + 整组标注模式
-    const shouldShowLabel =
-      mode === 'individual' ||
-      (config?.matchRules.mode === 'fixed-group-size' &&
-        config?.matchRules.groupSize === 1 &&
-        mode === 'group')
+    // - 单张标注模式：显示每张图片自己的标签数字
+    // - 整组标注模式：整组有标签时，在本组所有图片上显示同一个数字
+    const shouldShowLabel = mode === 'individual' || mode === 'group'
 
     if (!shouldShowLabel || !annotation || !config) return undefined
 
-    // 在整组模式下，标注的target是original；在单张模式下，是imagePath
+    // 在整组模式下，标注的 target 固定为 original；在单张模式下为 imagePath
     const targetToFind = mode === 'group' ? original : imagePath
     const labelItem = annotation.labels.find((item) => item.target === targetToFind)
 
@@ -73,11 +69,21 @@ export default function ImageComparison({
   const [scale, setScale] = useState(1)
   const [position, setPosition] = useState({ x: 0, y: 0 })
 
-  // 根据Q键状态决定显示的图片（按下Q时，所有图片向前移动一个位置）
+  // 根据Q键和W键状态决定显示的图片
   const allImages = [original, ...derivatives]
-  const displayImages = isQKeyPressed
-    ? [...derivatives, original]  // Q键按下：派生图1, 派生图2, ..., 原图
-    : allImages  // Q键松开：原图, 派生图1, 派生图2, ...
+  let displayImages: string[]
+  
+  if (isQKeyPressed) {
+    // Q键按下：所有图片向前移动一个位置
+    displayImages = [...derivatives, original]  // 派生图1, 派生图2, ..., 原图
+  } else if (isWKeyPressed) {
+    // W键按下：除第一张图外，剩余图片与第一张图切换
+    // 第一张图保持原图，其他位置都显示原图
+    displayImages = [original, ...derivatives.map(() => original)]  // 原图, 原图, 原图, ...
+  } else {
+    // 正常状态：原图, 派生图1, 派生图2, ...
+    displayImages = allImages
+  }
 
   // 当图片组切换时，重置缩放和平移
   useEffect(() => {
@@ -95,15 +101,21 @@ export default function ImageComparison({
   const totalImages = 1 + derivatives.length
 
   // 每张图的列宽度：根据图片数量自适应
-  // 1-4张图：均分24列；5+张图：每行最多5张（每张约4.8列）
-  let colSpan: number
+  // 1-4张图：均分24列；5张图：使用flex布局均匀分配；6+张图：每行最多6张（每张4列）
+  let colSpan: number | undefined
+  let useFlexLayout = false
+  
   if (totalImages <= 4) {
     colSpan = Math.floor(24 / totalImages)
+  } else if (totalImages === 5) {
+    // 5张图：使用flex布局，让每张图均匀分配宽度
+    useFlexLayout = true
+    colSpan = undefined
   } else {
-    colSpan = Math.floor(24 / 5) // 每行5张：24/5=4.8，取4
+    colSpan = 4 // 6+张图：每行最多6张，每张4列
   }
 
-  const rowCount = Math.ceil(totalImages / (24 / colSpan))
+  const rowCount = useFlexLayout ? 1 : Math.ceil(totalImages / (24 / (colSpan || 4)))
 
   // 提取文件名
   const getFileName = (path: string) => {
@@ -157,35 +169,92 @@ export default function ImageComparison({
           padding: '0',
         }}
       >
-        <Row gutter={[12, 12]} style={{ margin: 0 }}>
-          {allImages.map((imagePath, index) => {
-            // 当Q键按下时，这个位置应该显示的图片
-            const alternateImagePath = displayImages[index]
+        {useFlexLayout ? (
+          // 5张图时使用flex布局，均匀分配宽度
+          <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+            {allImages.map((imagePath, index) => {
+              // 根据Q键或W键状态，决定这个位置应该显示的图片
+              const alternateImagePath = displayImages[index]
 
-            // 找到该图片在原始数组中的位置，用于标题显示
-            const isOriginal = imagePath === original
-            const derivativeIndex = derivatives.indexOf(imagePath)
+              // 找到该图片在原始数组中的位置，用于标题显示
+              const isOriginal = imagePath === original
+              const derivativeIndex = derivatives.indexOf(imagePath)
 
-            // 根据匹配模式决定标题显示方式
-            const matchMode = config?.matchRules.mode
-            let title: string
-            let alt: string
+              // 根据匹配模式决定标题显示方式
+              const matchMode = config?.matchRules.mode
+              let title: string
+              let alt: string
 
-            if (matchMode === 'fixed-group-size') {
-              // 固定分组模式：显示图片序号，不区分原图和派生图
-              const imageIndex = index + 1
-              title = `图片 ${imageIndex}: ${getFileName(imagePath)}`
-              alt = `图片 ${imageIndex}`
-            } else {
-              // 其他模式：显示原图/派生图
-              title = isOriginal
-                ? `原图: ${getFileName(imagePath)}`
-                : `派生图 ${derivativeIndex + 1}: ${getFileName(imagePath)}`
-              alt = isOriginal ? '原图' : `派生图 ${derivativeIndex + 1}`
-            }
+              if (matchMode === 'fixed-group-size') {
+                // 固定分组模式：显示图片序号，不区分原图和派生图
+                const imageIndex = index + 1
+                title = `图片 ${imageIndex}: ${getFileName(imagePath)}`
+                alt = `图片 ${imageIndex}`
+              } else {
+                // 其他模式：显示原图/派生图
+                title = isOriginal
+                  ? `原图: ${getFileName(imagePath)}`
+                  : `派生图 ${derivativeIndex + 1}: ${getFileName(imagePath)}`
+                alt = isOriginal ? '原图' : `派生图 ${derivativeIndex + 1}`
+              }
 
-            return (
-              <Col key={imagePath} span={colSpan}>
+              return (
+                <div key={imagePath} style={{ flex: 1, minWidth: 0 }}>
+                  <ImageViewer
+                    src={imagePath}
+                    alt={alt}
+                    title={title}
+                    isSelected={allowSelection ? selectedImages.has(imagePath) : false}
+                    onSelect={allowSelection ? () => onSelectImage(imagePath) : undefined}
+                    onDeselect={allowSelection ? () => onDeselectImage(imagePath) : undefined}
+                    scale={scale}
+                    position={position}
+                    onScaleChange={setScale}
+                    onPositionChange={setPosition}
+                    onResetView={handleResetView}
+                    rowCount={rowCount}
+                    labelNumber={getLabelNumber(imagePath)}
+                    alternateSrc={alternateImagePath !== imagePath ? alternateImagePath : undefined}
+                    showAlternate={isQKeyPressed || isWKeyPressed}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          // 其他情况使用Row/Col布局
+          <Row 
+            gutter={[12, 12]} 
+            style={{ margin: 0 }}
+          >
+            {allImages.map((imagePath, index) => {
+              // 根据Q键或W键状态，决定这个位置应该显示的图片
+              const alternateImagePath = displayImages[index]
+
+              // 找到该图片在原始数组中的位置，用于标题显示
+              const isOriginal = imagePath === original
+              const derivativeIndex = derivatives.indexOf(imagePath)
+
+              // 根据匹配模式决定标题显示方式
+              const matchMode = config?.matchRules.mode
+              let title: string
+              let alt: string
+
+              if (matchMode === 'fixed-group-size') {
+                // 固定分组模式：显示图片序号，不区分原图和派生图
+                const imageIndex = index + 1
+                title = `图片 ${imageIndex}: ${getFileName(imagePath)}`
+                alt = `图片 ${imageIndex}`
+              } else {
+                // 其他模式：显示原图/派生图
+                title = isOriginal
+                  ? `原图: ${getFileName(imagePath)}`
+                  : `派生图 ${derivativeIndex + 1}: ${getFileName(imagePath)}`
+                alt = isOriginal ? '原图' : `派生图 ${derivativeIndex + 1}`
+              }
+
+              return (
+                <Col key={imagePath} span={colSpan}>
                 <ImageViewer
                   src={imagePath}
                   alt={alt}
@@ -201,12 +270,13 @@ export default function ImageComparison({
                   rowCount={rowCount}
                   labelNumber={getLabelNumber(imagePath)}
                   alternateSrc={alternateImagePath !== imagePath ? alternateImagePath : undefined}
-                  showAlternate={isQKeyPressed}
+                  showAlternate={isQKeyPressed || isWKeyPressed}
                 />
-              </Col>
-            )
-          })}
-        </Row>
+                </Col>
+              )
+            })}
+          </Row>
+        )}
       </div>
 
       {/* 提示信息 */}

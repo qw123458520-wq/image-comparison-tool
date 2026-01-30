@@ -26,6 +26,7 @@ import { useConfigStore } from '../store/configStore'
 
 export default function LargeImageView() {
   const {
+    groups,
     getCurrentGroup,
     currentIndex,
     totalCount,
@@ -268,20 +269,23 @@ export default function LargeImageView() {
     return parts[parts.length - 1]
   }
 
-  // 辅助函数：获取标签数字（用于单张标注模式）
+  // 辅助函数：获取标签数字（用于单张 / 整组标注模式）
   const getLabelNumber = (imagePath: string): number | undefined => {
     const { mode } = useAnnotationStore.getState()
-    if (mode !== 'individual') return undefined
+
+    // 仅在单张标注或整组标注模式下显示数字
+    if (mode !== 'individual' && mode !== 'group') return undefined
 
     const annotation = annotations.get(currentGroup.id)
-    if (!annotation) return undefined
+    if (!annotation || !config) return undefined
 
-    const labelItem = annotation.labels.find((item) => item.target === imagePath)
+    // 整组模式：使用原图作为 target；单张模式：使用当前图片路径
+    const targetToFind = mode === 'group' ? currentGroup.original : imagePath
+
+    const labelItem = annotation.labels.find((item) => item.target === targetToFind)
     if (!labelItem) return undefined
 
     // 根据预设标签查找索引（1-10，10显示为0）
-    if (!config) return undefined
-
     const labelIndex = config.labels.preset.indexOf(labelItem.label)
     if (labelIndex === -1) return undefined
 
@@ -410,7 +414,7 @@ export default function LargeImageView() {
                 setSharedPosition({ x: 0, y: 0 })
               }}
               rowCount={gridRowCount}
-              labelNumber={undefined}
+              labelNumber={getLabelNumber(currentGroup.original)}
               fixedHeightMode={true}
             />
           </Col>

@@ -1,18 +1,15 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Layout, Menu, Button, message, Modal } from 'antd'
+import { Layout, Menu, message } from 'antd'
 import {
   SettingOutlined,
   PictureOutlined,
-  PlayCircleOutlined,
   FolderOutlined,
-  UserOutlined,
   FileTextOutlined,
   SearchOutlined,
 } from '@ant-design/icons'
 import ConfigPanel from './components/ConfigPanel'
 import ComparisonView from './components/ComparisonView'
 import LargeImageView from './components/LargeImageView'
-import FaceAnalysisPanel from './components/FaceAnalysisPanel'
 import FileMatcherPanel from './components/FileMatcherPanel'
 import FileSearchPanel from './components/FileSearchPanel'
 import { useConfigStore } from './store/configStore'
@@ -22,7 +19,7 @@ import './App.css'
 
 const { Header, Content, Sider } = Layout
 
-type MenuItem = 'config' | 'compare' | 'large-view' | 'face-analysis' | 'file-matcher' | 'file-search'
+type MenuItem = 'config' | 'compare' | 'large-view' | 'file-matcher' | 'file-search'
 
 function App() {
   const [currentMenu, setCurrentMenu] = useState<MenuItem>('config')
@@ -182,7 +179,7 @@ function App() {
     <Layout style={{ minHeight: '100vh' }}>
       <Header style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
         <div style={{ color: 'white', fontSize: '18px', fontWeight: 'bold' }}>
-          图像对比标注工具
+          文件管理
         </div>
       </Header>
 
@@ -216,11 +213,6 @@ function App() {
                 ],
               },
               {
-                key: 'face-analysis',
-                icon: <UserOutlined />,
-                label: '人脸分析',
-              },
-              {
                 key: 'file-matcher',
                 icon: <FileTextOutlined />,
                 label: '文件匹配',
@@ -238,10 +230,6 @@ function App() {
           {/* 使用 display 控制显示/隐藏，而不是条件渲染，避免组件销毁和重建 */}
           <div style={{ display: currentMenu === 'config' ? 'block' : 'none', height: '100%' }}>
             <ConfigPanel />
-          </div>
-
-          <div style={{ display: currentMenu === 'face-analysis' ? 'block' : 'none', height: '100%' }}>
-            <FaceAnalysisPanel />
           </div>
 
           <div style={{ display: currentMenu === 'compare' ? 'block' : 'none', height: '100%' }}>

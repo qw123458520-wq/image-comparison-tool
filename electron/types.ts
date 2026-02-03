@@ -34,13 +34,6 @@ export interface Config {
     outputFolder?: string  // 输出文件夹根目录
     targetFolders: Record<string, string>
   }
-  faceAnalysis?: {
-    enabled: boolean
-    pythonPath?: string  // 自定义 Python 路径
-    enableSecondaryClassification: boolean  // 是否启用二级分类
-    ageRanges: string[]  // 年龄段定义
-    outputFolder?: string  // 分类输出文件夹
-  }
 }
 
 // 图片组

@@ -54,19 +54,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('report:exportSummary', groups, annotations),
   },
 
-  // 人脸分析
-  face: {
-    checkEnvironment: () => ipcRenderer.invoke('face:checkEnvironment'),
-    analyzeBatch: (config: any) => ipcRenderer.invoke('face:analyzeBatch', config),
-    classifyAndMove: (operations: any) => ipcRenderer.invoke('face:classifyAndMove', operations),
-    scanImages: (folderPath: string) => ipcRenderer.invoke('face:scanImages', folderPath),
-    onProgress: (callback: (progress: any) => void) => {
-      const listener = (_event: any, progress: any) => callback(progress)
-      ipcRenderer.on('face:analysisProgress', listener)
-      return () => ipcRenderer.removeListener('face:analysisProgress', listener)
-    },
-  },
-
   // 文件匹配工具
   fileMatcher: {
     matchSourceFiles: (config: any) => ipcRenderer.invoke('fileMatcher:matchSourceFiles', config),
@@ -130,13 +117,6 @@ export interface ElectronAPI {
     exportJSON: (groups: any, annotations: any) => Promise<any>
     exportCSV: (groups: any, annotations: any) => Promise<any>
     exportSummary: (groups: any, annotations: any) => Promise<any>
-  }
-  face: {
-    checkEnvironment: () => Promise<any>
-    analyzeBatch: (config: any) => Promise<any>
-    classifyAndMove: (operations: any) => Promise<any>
-    scanImages: (folderPath: string) => Promise<string[]>
-    onProgress: (callback: (progress: any) => void) => () => void
   }
   fileMatcher: {
     matchSourceFiles: (config: any) => Promise<any>

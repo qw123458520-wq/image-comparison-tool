@@ -13,12 +13,6 @@ import {
 } from './reportExporter'
 import { initDatabase, closeDatabase, getAnnotationsForGroups, saveAnnotation, deleteAnnotation, clearAnnotations } from './database'
 import {
-  checkPythonEnvironment,
-  analyzeBatchImages,
-  generateClassificationPath,
-  scanImagesInFolder,
-} from './pythonManager'
-import {
   matchSourceFiles,
   matchDerivedFiles,
   classifyFiles,
@@ -448,94 +442,6 @@ function setupIpcHandlers() {
       }
     }
   )
-
-  // ============================================
-  // 人脸识别相关 IPC handlers
-  // ============================================
-
-  // 检查 Python 环境
-  ipcMain.handle('face:checkEnvironment', async () => {
-    return await checkPythonEnvironment()
-  })
-
-  // 批量分析图片
-  ipcMain.handle('face:analyzeBatch', async (event, config) => {
-    console.log('🚀 IPC face:analyzeBatch handler called with config:', {
-      imageCount: config.imagePaths?.length || 0,
-      outputFolder: config.outputFolder,
-      pythonPath: config.pythonPath,
-      enableSecondaryClassification: config.enableSecondaryClassification
-    })
-
-    const results = []
-
-    // 将输出文件夹添加到白名单
-    if (config.outputFolder) {
-      addAllowedPath(config.outputFolder)
-    }
-
-    console.log('🔄 Calling analyzeBatchImages with', config.imagePaths.length, 'images')
-
-    // 批量分析
-    const analysisResults = await analyzeBatchImages(
-      config.imagePaths,
-      (progress) => {
-        // 发送进度到渲染进程
-        event.sender.send('face:analysisProgress', progress)
-      },
-      config.pythonPath
-    )
-
-    console.log('✅ analyzeBatchImages completed, processing', analysisResults.size, 'results')
-
-    // 生成分类路径
-    for (const [imagePath, result] of analysisResults) {
-      const targetPath = generateClassificationPath(result, config)
-      results.push({ imagePath, result, targetPath })
-    }
-
-    console.log('📤 Returning', results.length, 'results to renderer')
-    return results
-  })
-
-  // 执行文件分类移动
-  ipcMain.handle('face:classifyAndMove', async (_event, operations) => {
-    const moveResults = []
-
-    for (const op of operations) {
-      try {
-        const fse = await import('fs-extra')
-        await fse.ensureDir(op.targetPath)
-        const targetFile = path.join(op.targetPath, path.basename(op.sourcePath))
-        await fse.move(op.sourcePath, targetFile, { overwrite: false })
-
-        moveResults.push({
-          success: true,
-          source: op.sourcePath,
-          target: targetFile
-        })
-      } catch (error) {
-        moveResults.push({
-          success: false,
-          source: op.sourcePath,
-          error: error instanceof Error ? error.message : String(error)
-        })
-      }
-    }
-
-    return moveResults
-  })
-
-  // 扫描文件夹中的图片
-  ipcMain.handle('face:scanImages', async (_event, folderPath: string) => {
-    try {
-      const imagePaths = await scanImagesInFolder(folderPath)
-      return imagePaths
-    } catch (error) {
-      console.error('Error scanning images:', error)
-      throw error
-    }
-  })
 
   // ============================================
   // 文件匹配工具相关 IPC handlers

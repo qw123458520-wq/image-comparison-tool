@@ -19,7 +19,7 @@
   },
   "build": {
     "appId": "com.imagetools.comparison",
-    "productName": "图像对比标注工具",
+    "productName": "文件管理",
     "artifactName": "image-comparison-tool-${os}-${arch}.${ext}",
     "directories": {
       "output": "release",
@@ -89,7 +89,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "图像对比标注工具"
+      "shortcutName": "文件管理"
     },
     "linux": {
       "target": [

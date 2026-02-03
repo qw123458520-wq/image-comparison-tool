@@ -1,3 +1,0 @@
-deepface>=0.0.79
-opencv-python>=4.8.0
-tf-keras>=2.15.0
